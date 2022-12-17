@@ -1,60 +1,14 @@
 import pandas as pd
 import os
+# https://stackoverflow.com/questions/50236928/openpyxl-valueerror-max-value-is-14-when-using-load-workbook
+# IMPORTANT, you must do this before importing openpyxl
+from unittest import mock
+# Set max font family value to 100
+p = mock.patch('openpyxl.styles.fonts.Font.family.max', new=100)
+p.start()
 from openpyxl import load_workbook
 import numpy as np
 
-
-def append_df_to_excel(filename, df, sheet_name='Sheet1', startrow=None, startcol=None,
-                       truncate_sheet=False, 
-                       **to_excel_kwargs):
-    """
-    https://stackoverflow.com/questions/20219254/how-to-write-to-an-existing-excel-file-without-overwriting-data-using-pandas
-    """
-    # Excel file doesn't exist - saving and exiting
-    if not os.path.isfile(filename):
-        df.to_excel(
-            filename,
-            sheet_name=sheet_name, 
-            startrow=startrow if startrow is not None else 0, 
-            **to_excel_kwargs)
-        return
-    
-    # ignore [engine] parameter if it was passed
-    if 'engine' in to_excel_kwargs:
-        to_excel_kwargs.pop('engine')
-
-    writer = pd.ExcelWriter(filename, engine='openpyxl', mode='a')
-
-    # try to open an existing workbook
-    writer.book = load_workbook(filename)
-    
-    # get the last row in the existing Excel sheet
-    # if it was not specified explicitly
-    if startrow is None and sheet_name in writer.book.sheetnames:
-        startrow = writer.book[sheet_name].max_row
-
-    # truncate sheet
-    if truncate_sheet and sheet_name in writer.book.sheetnames:
-        # index of [sheet_name] sheet
-        idx = writer.book.sheetnames.index(sheet_name)
-        # remove [sheet_name]
-        writer.book.remove(writer.book.worksheets[idx])
-        # create an empty sheet [sheet_name] using old index
-        writer.book.create_sheet(sheet_name, idx)
-    
-    # copy existing sheets
-    writer.sheets = {ws.title:ws for ws in writer.book.worksheets}
-
-    if startrow is None:
-        startrow = 0
-    if startcol is None:
-        startcol = 0
-
-    # write out the new sheet
-    df.to_excel(writer, sheet_name, startrow=startrow, startcol=startcol, **to_excel_kwargs)
-
-    # save the workbook
-    writer.save()
 
 def get_df_from_file(filename, sheetname=0):
     if "csv" in filename:
@@ -72,10 +26,6 @@ def create_df_from_val(val):
 def update_df(df, row, col, new_val):
     df.iloc[row, col] = new_val
 
-def write_df_to_file(df, filename, sheetname, start_row, start_col):
-    append_df_to_excel(filename=filename, df=df, sheet_name=sheetname, startrow=start_row, startcol=start_col, 
-                       truncate_sheet=False, header=None, index=False)
-
 def convert2csv(input_file_name, sheet_name=0):
     outputfile_name = input_file_name.replace("xlsx", "csv")
     if os.path.isfile(outputfile_name):
@@ -86,14 +36,14 @@ def convert2csv(input_file_name, sheet_name=0):
 def convertfiles(input_file_list):
     for fname in input_file_list:
         convert2csv(fname)
+    print("Conversion to csv done")
 
 def start():
     source = get_df_from_file("2.xlsx", "dest")
     print(get_val_from_df(source, 9, 2))
     update_df(source, 9, 2, "overwrite")
-    write_df_to_file(source, "2.xlsx", "dest", 9, 3)
 
-def step(data_csv, report_csv):
+def extract(data_csv, report_csv):
     data = [] # list of sth
     with open(data_csv, "r") as fin:
         lines = fin.readlines()[1:] # list of strings
@@ -131,13 +81,21 @@ def step(data_csv, report_csv):
             to_write.append(",".join(first_last) + "\n")
         with open("out" + str(i) + ".csv", "w") as fout:
             fout.writelines(to_write)
+    print("Data extraction done")
 
-def copy(inputf, outputf, sheet_name):
+def copy(inputf, writer, sheet_name):
     source = get_df_from_file(inputf)
-    write_df_to_file(source, outputf, sheet_name, 19, 0)
-    
+    """
+    https://stackoverflow.com/questions/20219254/how-to-write-to-an-existing-excel-file-without-overwriting-data-using-pandas
+    """  
+    source.to_excel(writer, sheet_name, startrow=19, startcol=0, header=None, index=False)
 
 def copy_files(output):
+    writer = pd.ExcelWriter(output, engine='openpyxl', mode='a')
+    writer.book = load_workbook(output)
+    writer.sheets = {ws.title:ws for ws in writer.book.worksheets}
+    print("Loading Template done, start copying")
+    
     filelist=["out" + str(i) + ".csv" for i in range(0, 6)]
     sheet_name = {0: "Ar_35_15",
                   1: "H2_35_15",
@@ -146,9 +104,14 @@ def copy_files(output):
                   4: "O2_35_15",
                   5: "CO2_35_15"}
     for i in range(len(filelist)):
-        copy(filelist[i], output, sheet_name[i])
+        copy(filelist[i], writer, sheet_name[i])
+        print("Copy", i, "has finished")
+    print("Start saving")
+    writer.save()
 
 if __name__ == "__main__":
     convertfiles(["data.xlsx", "report.xlsx"])
-    step("data.csv", "report.csv")
-    copy_files(output="Permeation Test Template (Short).xlsm")
+    extract("data.csv", "report.csv")
+    # copy_files(output="Permeation Test Template (Short).xlsm")
+    copy_files(output="Permeation Test Template (Short).xlsx")
+    print("Done")
