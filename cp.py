@@ -9,10 +9,9 @@ p.start()
 from openpyxl import load_workbook
 import numpy as np
 
-
 def get_df_from_file(filename, sheetname=0):
     if "csv" in filename:
-        return pd.read_csv(filename, header=None)
+        return pd.read_csv(filename, header=None, engine='python', index_col=False)
     else:
         return pd.read_excel(filename, sheet_name=sheetname, engine='openpyxl', header=None)
         # return pd.read_excel(filename, sheet_name=sheetname, engine='openpyxl_wo_formatting', header=None)
@@ -30,13 +29,18 @@ def convert2csv(input_file_name, sheet_name=0):
     outputfile_name = input_file_name.replace("xlsx", "csv")
     if os.path.isfile(outputfile_name):
         print(outputfile_name, "already exist. Skipping converting")
+        return False
     data_xls = get_df_from_file(input_file_name, sheet_name)
     data_xls.to_csv(outputfile_name, encoding='utf-8', header=None, index=False)
+    return True
 
 def convertfiles(input_file_list):
+    should_delete_csv = True
     for fname in input_file_list:
-        convert2csv(fname)
+        if convert2csv(fname) == False and should_delete_csv == True:
+            should_delete_csv = False
     print("Conversion to csv done")
+    return should_delete_csv
 
 def start():
     source = get_df_from_file("2.xlsx", "dest")
@@ -90,7 +94,23 @@ def copy(inputf, writer, sheet_name):
     """  
     source.to_excel(writer, sheet_name, startrow=19, startcol=0, header=None, index=False)
 
-def copy_files(output):
+def copy_numbers(number_src, writer, sheet_names):
+    source = get_df_from_file(number_src)
+    downstream_leak_rate = get_val_from_df(source, 15, 1)
+    df_downstream_leak_rate = pd.DataFrame(pd.Series([float(downstream_leak_rate)]))
+    df_downstream_leak_rate.to_excel(writer, "Sample", startrow=14, startcol=1, header=None, index=None)
+    for i in range(0, 6):
+        mean_upstream_pressure = get_val_from_df(source, 26 + i * 18, 1)
+        temperature_setpoint = get_val_from_df(source, 27 + i * 18, 1)
+        downstream_volume = get_val_from_df(source, 30 + i * 18, 1)
+        df_mean_upstream_pressure = pd.DataFrame(pd.Series([float(mean_upstream_pressure)]))
+        df_temperature_setpoint = pd.DataFrame(pd.Series([float(temperature_setpoint)]))
+        df_downstream_volume = pd.DataFrame(pd.Series([float(downstream_volume)]))
+        df_mean_upstream_pressure.to_excel(writer, sheet_names[i], startrow=4, startcol=4, header=None, index=None)
+        df_temperature_setpoint.to_excel(writer, sheet_names[i], startrow=1, startcol=3, header=None, index=None)
+        df_downstream_volume.to_excel(writer, sheet_names[i], startrow=1, startcol=6, header=None, index=None)        
+
+def copy_files(number_src, output):
     writer = pd.ExcelWriter(output, engine='openpyxl', mode='a')
     writer.book = load_workbook(output)
     writer.sheets = {ws.title:ws for ws in writer.book.worksheets}
@@ -106,12 +126,29 @@ def copy_files(output):
     for i in range(len(filelist)):
         copy(filelist[i], writer, sheet_name[i])
         print("Copy", i, "has finished")
+    copy_numbers(number_src, writer, sheet_name)
+    print("Copy numbers done")
     print("Start saving")
     writer.save()
 
+def delete_file(path):
+    if os.path.exists(path):
+        os.remove(path)
+    else:
+        print('no such file', path)
+
+def clean(should_delete):
+    import os
+    for i in range(0, 6):
+        delete_file("out" + str(i) + ".csv")
+    if should_delete:
+        delete_file("data.csv")
+        delete_file("report.csv")
+
 if __name__ == "__main__":
-    convertfiles(["data.xlsx", "report.xlsx"])
+    should_delete = convertfiles(["data.xlsx", "report.xlsx"])
     extract("data.csv", "report.csv")
     # copy_files(output="Permeation Test Template (Short).xlsm")
-    copy_files(output="Permeation Test Template (Short).xlsx")
-    print("Done")
+    copy_files(number_src="report.csv", output="Permeation Test Template.xlsx")
+    clean(should_delete)
+    print("Done, please open and repair the xlsx file")
