@@ -96,13 +96,13 @@ def copy(inputf, writer, sheet_name):
 
 def copy_numbers(number_src, writer, sheet_names):
     source = get_df_from_file(number_src)
-    downstream_leak_rate = get_val_from_df(source, 15, 1)
+    downstream_leak_rate = get_val_from_df(source, 15 + 1, 1)
     df_downstream_leak_rate = pd.DataFrame(pd.Series([float(downstream_leak_rate)]))
     df_downstream_leak_rate.to_excel(writer, "Sample", startrow=14, startcol=1, header=None, index=None)
     for i in range(0, 6):
-        mean_upstream_pressure = get_val_from_df(source, 26 + i * 18, 1)
-        temperature_setpoint = get_val_from_df(source, 27 + i * 18, 1)
-        downstream_volume = get_val_from_df(source, 30 + i * 18, 1)
+        mean_upstream_pressure = get_val_from_df(source, 26 + i * 18 + 1, 1)
+        temperature_setpoint = get_val_from_df(source, 27 + i * 18 + 1, 1)
+        downstream_volume = get_val_from_df(source, 30 + i * 18 + 1, 1)
         df_mean_upstream_pressure = pd.DataFrame(pd.Series([float(mean_upstream_pressure)]))
         df_temperature_setpoint = pd.DataFrame(pd.Series([float(temperature_setpoint)]))
         df_downstream_volume = pd.DataFrame(pd.Series([float(downstream_volume)]))
