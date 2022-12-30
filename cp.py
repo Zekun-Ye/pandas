@@ -54,10 +54,10 @@ def extract(data_csv, report_csv):
         for i in range(len(lines)):
             line = lines[i].strip()
             splitted = line.split(",")
-            first, last = splitted[0], splitted[7]
+            first, last = splitted[0], float(splitted[3])
             if first == "":
                 continue
-            first, last = int(first), float(last)
+            first, last = int(first), last*1.33322
             data.append([first, last])
             # print(first, last)
 
@@ -111,9 +111,9 @@ def copy_numbers(number_src, writer, sheet_names):
         df_downstream_volume.to_excel(writer, sheet_names[i], startrow=1, startcol=6, header=None, index=None)        
 
 def copy_files(number_src, output):
-    writer = pd.ExcelWriter(output, engine='openpyxl', mode='a')
+    writer = pd.ExcelWriter(output, engine='openpyxl', mode='a', if_sheet_exists='overlay')
     writer.book = load_workbook(output)
-    writer.sheets = {ws.title:ws for ws in writer.book.worksheets}
+    writer.sheets.update( {ws.title:ws for ws in writer.book.worksheets} )
     print("Loading Template done, start copying")
     
     filelist=["out" + str(i) + ".csv" for i in range(0, 6)]
